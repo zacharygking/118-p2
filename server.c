@@ -1,74 +1,115 @@
-/* A simple server in the internet domain using TCP
-   The port number is passed as an argument 
-   This version runs forever, forking off a separate 
-   process for each connection
-*/
+/* 
+ * udpserver.c - A simple UDP echo server 
+ * usage: udpserver <port>
+ */
+
 #include <stdio.h>
-#include <sys/types.h>   // definitions of a number of data types used in socket.h and netinet/in.h
-#include <sys/socket.h>  // definitions of structures needed for sockets, e.g. sockaddr
-#include <netinet/in.h>  // constants and structures needed for internet domain addresses, e.g. sockaddr_in
+#include <unistd.h>
 #include <stdlib.h>
-#include <strings.h>
-#include <sys/wait.h>	/* for the waitpid() system call */
-#include <signal.h>	/* signal name macros, and the kill() prototype */
+#include <string.h>
+#include <netdb.h>
+#include <sys/types.h> 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
+#define BUFSIZE 1024
 
-void error(char *msg)
-{
-    perror(msg);
+/*
+ * error - wrapper for perror
+ */
+void error(char *msg) {
+  perror(msg);
+  exit(1);
+}
+
+int main(int argc, char **argv) {
+  int sockfd; /* socket */
+  int portno; /* port to listen on */
+  int clientlen; /* byte size of client's address */
+  struct sockaddr_in serveraddr; /* server's addr */
+  struct sockaddr_in clientaddr; /* client addr */
+  struct hostent *hostp; /* client host info */
+  char buf[BUFSIZE]; /* message buf */
+  char *hostaddrp; /* dotted decimal host addr string */
+  int optval; /* flag value for setsockopt */
+  int n; /* message byte size */
+
+  /* 
+   * check command line arguments 
+   */
+  if (argc != 2) {
+    fprintf(stderr, "usage: %s <port>\n", argv[0]);
     exit(1);
+  }
+  portno = atoi(argv[1]);
+
+  /* 
+   * socket: create the parent socket 
+   */
+  sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (sockfd < 0) 
+    error("ERROR opening socket");
+
+  /* setsockopt: Handy debugging trick that lets 
+   * us rerun the server immediately after we kill it; 
+   * otherwise we have to wait about 20 secs. 
+   * Eliminates "ERROR on binding: Address already in use" error. 
+   */
+  optval = 1;
+  setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, 
+	     (const void *)&optval , sizeof(int));
+
+  /*
+   * build the server's Internet address
+   */
+  bzero((char *) &serveraddr, sizeof(serveraddr));
+  serveraddr.sin_family = AF_INET;
+  serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
+  serveraddr.sin_port = htons((unsigned short)portno);
+
+  /* 
+   * bind: associate the parent socket with a port 
+   */
+  if (bind(sockfd, (struct sockaddr *) &serveraddr, 
+	   sizeof(serveraddr)) < 0) 
+    error("ERROR on binding");
+
+  /* 
+   * main loop: wait for a datagram, then echo it
+   */
+  clientlen = sizeof(clientaddr);
+  while (1) {
+
+    /*
+     * recvfrom: receive a UDP datagram from a client
+     */
+    bzero(buf, BUFSIZE);
+    n = recvfrom(sockfd, buf, BUFSIZE, 0,
+		 (struct sockaddr *) &clientaddr, &clientlen);
+    if (n < 0)
+      error("ERROR in recvfrom");
+
+    /* 
+     * gethostbyaddr: determine who sent the datagram
+     */
+    hostp = gethostbyaddr((const char *)&clientaddr.sin_addr.s_addr, 
+			  sizeof(clientaddr.sin_addr.s_addr), AF_INET);
+    if (hostp == NULL)
+      error("ERROR on gethostbyaddr");
+    hostaddrp = inet_ntoa(clientaddr.sin_addr);
+    if (hostaddrp == NULL)
+      error("ERROR on inet_ntoa\n");
+    printf("server received datagram from %s (%s)\n", 
+	   hostp->h_name, hostaddrp);
+    printf("server received %d/%d bytes: %s\n", strlen(buf), n, buf);
+    
+    /* 
+     * sendto: echo the input back to the client 
+     */
+    n = sendto(sockfd, buf, strlen(buf), 0, 
+	       (struct sockaddr *) &clientaddr, clientlen);
+    if (n < 0) 
+      error("ERROR in sendto");
+  }
 }
-
-int main(int argc, char *argv[])
-{
-     int sockfd, newsockfd, portno, pid;
-     socklen_t clilen;
-     struct sockaddr_in serv_addr, cli_addr;
-
-     if (argc < 2) {
-         fprintf(stderr,"ERROR, no port provided\n");
-         exit(1);
-     }
-     sockfd = socket(AF_INET, SOCK_STREAM, 0);	//create socket
-     if (sockfd < 0) 
-        error("ERROR opening socket");
-     memset((char *) &serv_addr, 0, sizeof(serv_addr));	//reset memory
-     //fill in address info
-     portno = atoi(argv[1]);
-     serv_addr.sin_family = AF_INET;
-     serv_addr.sin_addr.s_addr = INADDR_ANY;
-     serv_addr.sin_port = htons(portno);
-     
-     if (bind(sockfd, (struct sockaddr *) &serv_addr,
-              sizeof(serv_addr)) < 0) 
-              error("ERROR on binding");
-     
-     listen(sockfd,5);	//5 simultaneous connection at most
-     
-     //accept connections
-     newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
-         
-     if (newsockfd < 0) 
-       error("ERROR on accept");
-         
-     int n;
-   	 char buffer[256];
-   			 
-   	 memset(buffer, 0, 256);	//reset memory
-      
- 		 //read client's message
-   	 n = read(newsockfd,buffer,255);
-   	 if (n < 0) error("ERROR reading from socket");
-   	 printf("Here is the message: %s\n",buffer);
-   	 
-   	 //reply to client
-   	 n = write(newsockfd,"I got your message",18);
-   	 if (n < 0) error("ERROR writing to socket");
-         
-     
-     close(newsockfd);//close connection 
-     close(sockfd);
-         
-     return 0; 
-}
-
