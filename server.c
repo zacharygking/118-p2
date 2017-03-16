@@ -12,7 +12,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-
 #include <pthread.h>
 
 #define BUFSIZE 1024
@@ -160,7 +159,7 @@ int main(int argc, char **argv) {
 			threadInfo[i].fd = sockfd;
 			threadInfo[i].len = fileSize - dataSent > 1022 ? 1022 : fileSize - dataSent;
 			threadInfo[i].seq = currSeq;
-			memset(threadInfo[i].buff, sizeof(char), 1024);
+			memset(threadInfo[i].buff, 0, 1024);
 			fread(threadInfo[i].buff, sizeof(char), threadInfo[i].len, file);
 			pthread_create(&windowThreads[i], NULL, sendPacket, &threadInfo[i]);
 			currSeq += threadInfo[i].len + 2;
@@ -168,10 +167,10 @@ int main(int argc, char **argv) {
 		}
 	}
 	int seq = 0;
-	while(1) {
-		n = recvfrom(sockfd, buf, BUFSIZE, 0,
-		 (struct sockaddr *) &clientaddr, &clientlen);
-		 printf("server received %d/%d bytes: %s\n", strlen(buf), n, buf);
+	while(dataSent < fileSize) {
+		memset(buf, 0, 1024);
+		n = recvfrom(sockfd, buf, BUFSIZE, 0, (struct sockaddr *) &clientaddr, &clientlen);
+		printf("server received %d/%d bytes: %s", strlen(buf), n, buf);
 		 
 		if (seq == windowStart) {	
 			windowStart += 1024;
@@ -180,16 +179,18 @@ int main(int argc, char **argv) {
 				if (threadInfo[i].seq == seq) {
 					threadInfo[i].seq = windowEnd;
 					threadInfo[i].len = fileSize - dataSent > 1022 ? 1022 : fileSize - dataSent;
-					memset(threadInfo[i].buff, sizeof(char), 1024);
+					memset(threadInfo[i].buff, 0, 1024);
 					fread(threadInfo[i].buff, sizeof(char), threadInfo[i].len, file);
 					pthread_create(&windowThreads[i], NULL, sendPacket, &threadInfo[i]);
-					printf("launching\n");
 					currSeq += threadInfo[i].len + 2;
 					dataSent += threadInfo[i].len;
 				}
 			}
 			seq += 1024;
+		} else {
+			recievedACK[seq] = 1;
 		}
 	}
+
   }
 }
