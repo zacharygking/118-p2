@@ -149,13 +149,9 @@ int main(int argc, char **argv) {
 	for (i = 0; i < 5; i++) {
 		if (dataSent == fileSize) {
 			// Done Sending the File
+			break;
 		} else {
-			// windowLengths[i] = fileSize - dataSent > 1022 ? 1022 : fileSize - dataSent; 
-			// windowSeqs[i] = currSeq;
-			// fread(windowData[1024 * i], sizeof(char), windowLengths[i], file);
-			// pthread_create(&windowThreads[i], NULL, sendPacket, &sockfd, &windowSeqs[i], &windowData[i], &windowLengths[i]);
-			// dataSent += windowLengths[i];
-			// currSeq += windowLengths[i] + 2;
+			// Launch a thread to send the next segment
 			threadInfo[i].fd = sockfd;
 			threadInfo[i].len = fileSize - dataSent > 1022 ? 1022 : fileSize - dataSent;
 			threadInfo[i].seq = currSeq;
@@ -188,9 +184,9 @@ int main(int argc, char **argv) {
 			}
 			seq += 1024;
 		} else {
-			recievedACK[seq] = 1;
+			recievedACK[seq/1024] = 1;
 		}
 	}
-
+	printf("finished sending file\n");
   }
 }
