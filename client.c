@@ -37,10 +37,10 @@ int main(int argc, char **argv) {
     int seq_min = 0;
     int seq_max = 0 + WND_SIZE;
     char file_name[BUFSIZE];
-    uint16_t seq_num;
+    uint16_t seq_num , real_seq_num;
     int datafile_fd;
     char buf[1022];
-    
+      
     /* check command line arguments */
     if (argc != 4) {
        fprintf(stderr,"usage: %s <hostname> <port> <data file>\n", argv[0]);
@@ -82,10 +82,16 @@ int main(int argc, char **argv) {
       n = recvfrom(sockfd, &seq_num, sizeof(seq_num), 0, (struct sockaddr *)&serveraddr, &serverlen);
     if (n < 0) 
       error("ERROR in recvfrom\n");
+    real_seq_num = seq_num;
     seq_num/=1024;
+
+    n = sendto(sockfd, &real_seq_num, sizeof(real_seq_num), 0, (struct sockaddr *)&serveraddr, serverlen);
+    if (n < 0)
+      error("ERROR in sendto\n");
+    
     if((seq_min < seq_max && seq_num < seq_max && seq_num >= seq_min)
        || (seq_min > seq_max && seq_num >= seq_min && seq_num < seq_max)){
-	 printf("Receiving Packet %" PRIu16 "\n", seq_num);
+	 printf("Receiving Packet %" PRIu16 "\n", real_seq_num);
 	 int i;
 	 int num;
 	 int offset;
