@@ -68,7 +68,7 @@ void* sendPacket(void* args) {
 		gettimeofday(&check, NULL);
 		timersub(&check, &sent, &result);
 		if (result.tv_usec / 1000 > 500) {
-			printf("sending packet seq=%d, len=%d\n", data.seq, data.len);
+			printf("resending packet seq=%d, len=%d\n", data.seq, data.len);
 			int n = sendto(data.fd, packet, data.len + 2, 0, data.dest_addr, data.serverlen);
 			if (n < 0)
 				error("Error sending packet.\n");
@@ -172,7 +172,7 @@ int main(int argc, char **argv) {
 
 		// Send the First Five Packets if Possible
 		for (i = 0; i < 5; i++) {
-			if (dataSent == fileSize) 
+			if (dataSent == fileSize) { 
 				break; // Done sending the file
 			} else {
 				// Launch a thread to send the next segment
@@ -263,7 +263,7 @@ int main(int argc, char **argv) {
 				sum += recievedACK[i];
 			}
 		}
-		/*
+		printf("sending FIN\n");
 		// All ACKs Recieved, Send FIN
 		char packet[6];
 		memset(packet, 0, 5);
@@ -279,7 +279,7 @@ int main(int argc, char **argv) {
 			error("Error sending packet.\n");
 
 		// Wait for FIN ACK
-		*/
+		
 		printf("Finished Sending File\n");
 	}
 }
