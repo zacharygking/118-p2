@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <string.h>
 #include <netdb.h>
 #include <sys/types.h> 
@@ -158,7 +159,7 @@ int main(int argc, char **argv) {
 
 		// Open the Requested File and Read the Size
 		printf("server received %d/%d bytes: %s\n", strlen(fileName), n, fileName);
-		if (fileName[strlen(fileName) - 1] == '\n')
+		if (!isalpha(fileName[strlen(fileName) - 1]))
 			fileName[strlen(fileName) - 1] = '\0';
 
 		FILE* file = fopen(fileName, "rb");
