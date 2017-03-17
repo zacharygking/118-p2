@@ -36,8 +36,8 @@ int main(int argc, char **argv) {
     int WND_SIZE = 5;
     int seq_min = 0;
     int seq_max = 0 + WND_SIZE;
-    char file_name[BUFSIZE];
-    uint16_t seq_num , real_seq_num;
+    char file_name[BUFSIZE + 1];
+    short seq_num , real_seq_num;
     int datafile_fd;
     char buf[1022];
       
@@ -73,53 +73,66 @@ int main(int argc, char **argv) {
 	  (char *)&serveraddr.sin_addr.s_addr, server->h_length);
     serveraddr.sin_port = htons(portno);
 
-    strncpy(file_name, file_temp, sizeof(file_name) - 1);
-    file_name[sizeof(file_name) - 1] = '\0';
-    n = sendto(sockfd, file_name, strlen(file_name), 0, (struct sockaddr *)&serveraddr, serverlen); /* send file name to server */
-    
-    while(1){ /* wait for server packets */
-      
-      n = recvfrom(sockfd, &seq_num, sizeof(seq_num), 0, (struct sockaddr *)&serveraddr, &serverlen);
-    if (n < 0) 
-      error("ERROR in recvfrom\n");
-    real_seq_num = seq_num;
-    seq_num/=1024;
+    strncpy(file_name, file_temp, strlen(file_temp));
+    file_name[strlen(file_name)] = '\0';
 
-    n = sendto(sockfd, &real_seq_num, sizeof(real_seq_num), 0, (struct sockaddr *)&serveraddr, serverlen);
-    if (n < 0)
-      error("ERROR in sendto\n");
+	printf("%d %s\n", strlen(file_name), file_name);
+	serverlen = sizeof(serveraddr);
+    n = sendto(sockfd, file_name, strlen(file_name), 0, &serveraddr, serverlen); /* send file name to server */
+
+    while(1){ /* wait for server packets */
+		char buf[BUFSIZE];
+		memset(buf, 0, 1024);
+		n = recvfrom(sockfd, &buf, BUFSIZE, 0, (struct sockaddr *)&serveraddr, &serverlen);
+		if (n < 0) 
+      		error("ERROR in recvfrom\n");
+		char seq_temp[3];
+		strncpy(seq_temp, buf, 2);
+		seq_temp[strlen(seq_temp)] = '\0'; 
+
+		real_seq_num = (((short)seq_temp[0]) << 8) | seq_temp[1];
+		printf("recieved seq: %d\n", real_seq_num);
+
+		seq_num = real_seq_num/1024;
+		if (seq_num == 13)
+			continue;
+		n = sendto(sockfd, &seq_temp, 2, 0, (struct sockaddr *)&serveraddr, serverlen);
+		if (n < 0)
+			error("ERROR in sendto\n");
     
-    if((seq_min < seq_max && seq_num < seq_max && seq_num >= seq_min)
-       || (seq_min > seq_max && seq_num >= seq_min && seq_num < seq_max)){
-	 printf("Receiving Packet %" PRIu16 "\n", real_seq_num);
-	 int i;
-	 int num;
-	 int offset;
-	 if(seq_num == seq_min && seq_min > seq_max)
-	   offset = 32;
-	 else
-	   offset = 0;
-	 
-	 frame[seq_num] = 0;
-	 for(i = seq_min + 1; i < seq_max + offset; i++){
-	   num = i%32;
-	   if(frame[num] == 1){
-	     frame[num] = 0;
-	   }
-	   else{
-	     break;
-	   } 
-	 }
-	 seq_min = i % 32;
-	 seq_max = (seq_min + 5) % 32;
-	 bzero(buf, 1022);
-	 n = recvfrom(sockfd, &buf, sizeof(buf), 0, (struct sockaddr *)&serveraddr, &serverlen);
-	 if(n < 0)
-	   error("Error in recvfrom\n");
-	 n = write(datafile_fd, &buf, sizeof(buf));
-	 if(n < 0)
-	   perror("Error writing to receive.data\n");
-    }
-    }
-    
+    	if((seq_min < seq_max && seq_num < seq_max && seq_num >= seq_min)
+			|| (seq_min > seq_max && seq_num >= seq_min && seq_num < seq_max)) {
+
+			printf("Receiving Packet %d\n", real_seq_num);
+
+			if(seq_num != seq_min){
+				frame[seq_num] = 1;
+			}
+
+			int i;
+			int num;
+			int offset;
+			if(seq_num == seq_min && seq_min > seq_max)
+				offset = 32;
+			else
+				offset = 0;
+			
+			frame[seq_num] = 0;
+			for(i = seq_min + 1; i < seq_max + offset; i++){
+				num = i%32;
+				if(frame[num] == 1){
+					frame[num] = 0;
+				} else {
+	    			break;
+				} 
+	 		}
+			seq_min = i % 32;
+			seq_max = (seq_min + 5) % 32;
+			bzero(buf, 1022);
+
+			n = write(datafile_fd, &buf, sizeof(buf));
+			if(n < 0)
+				perror("Error writing to receive.data\n");
+    	}
+	} 
 }
