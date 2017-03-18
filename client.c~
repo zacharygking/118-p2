@@ -66,9 +66,9 @@ int main(int argc, char **argv) {
     }
 
     /* open data file */
-    datafile_fd = open("received", O_TRUNC | O_CREAT | O_RDWR, 0644);
+    datafile_fd = open("receive.jpg", O_TRUNC | O_CREAT | O_RDWR, 0644);
     if (datafile_fd == -1)
-      error("Error opening received");
+      error("Error opening receive.data");
     
     /* build the server's Internet address */
     bzero((char *) &serveraddr, sizeof(serveraddr));

@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
 
 		// Init  
 		int i;
-		for (i = 0; i < 31; i++)
+		for (i = 0; i < 30; i++)
 			recievedACK[i] = 1;
 		short windowStart = 0;
 		short windowEnd = windowStart + WINDOWSIZE;
