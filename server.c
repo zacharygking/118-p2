@@ -137,7 +137,7 @@ int main(int argc, char **argv) {
 
 
 		// Recieve File Request
-		bzero(fileName, BUFSIZE);
+		memset(fileName, 0, BUFSIZE);
 		n = recvfrom(sockfd, fileName, BUFSIZE, 0,
 				(struct sockaddr *) &clientaddr, &clientlen);
 		if (n < 0)
@@ -156,7 +156,7 @@ int main(int argc, char **argv) {
 		if (!isalnum(fileName[strlen(fileName) - 1]))
 			fileName[strlen(fileName) - 1] = '\0';
 
-		//printf("fileName: %s", fileName);
+		printf("fileName: %s", fileName);
 
 		FILE* file = fopen(fileName, "rb");
 		if (file == NULL) {
