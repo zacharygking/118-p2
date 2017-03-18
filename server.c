@@ -52,7 +52,7 @@ void* sendPacket(void* args) {
 	packet[0] = (data.seq >> 8) & 0xFF;
 	packet[1] = data.seq & 0xFF;
 	memcpy(packet + 2, data.buff, data.len);
-	printf("sending packet seq=%d, len=%d\n", data.seq, data.len);
+	printf("Sending Packet seq=%d, len=%d\n", data.seq, data.len);
 	int n = sendto(data.fd, packet, data.len + 2, 0, data.dest_addr, data.serverlen);
 	if (n < 0)
 		error("Error sending packet.\n");
@@ -61,7 +61,6 @@ void* sendPacket(void* args) {
 	while (1) {
 		// If the ACK has been recieved return
 		if (recievedACK[data.seq/1024] == 1) {
-			printf("Thread Suicide: %d\n", data.seq);
 			return 0;
 		}
 
@@ -69,7 +68,7 @@ void* sendPacket(void* args) {
 		gettimeofday(&check, NULL);
 		timersub(&check, &sent, &result);
 		if (result.tv_usec / 1000 > 500) {
-			printf("resending packet seq=%d, len=%d\n", data.seq, data.len);
+			printf("Retransmitting Packet seq=%d, len=%d\n", data.seq, data.len);
 			int n = sendto(data.fd, packet, data.len + 2, 0, data.dest_addr, data.serverlen);
 			if (n < 0)
 				error("Error sending packet.\n");
@@ -115,10 +114,8 @@ int main(int argc, char **argv) {
 
 	
 	//bind: associate the parent socket with a port 
-	if (bind(sockfd, (struct sockaddr *) &serveraddr, 
-		sizeof(serveraddr)) < 0) 
-	error("ERROR on binding");
-
+	if (bind(sockfd, (struct sockaddr *) &serveraddr, sizeof(serveraddr)) < 0) 
+		error("ERROR on binding");
 	 
 	// Continuously Service Files
 	clientlen = sizeof(clientaddr);
@@ -154,19 +151,18 @@ int main(int argc, char **argv) {
 		hostaddrp = inet_ntoa(clientaddr.sin_addr);
 		if (hostaddrp == NULL)
 			error("ERROR on inet_ntoa\n");
-		printf("server received datagram from %s (%s)\n", 
-			hostp->h_name, hostaddrp);
 
 		// Open the Requested File and Read the Size
-		printf("server received %d/%d bytes: %s\n", strlen(fileName), n, fileName);
-		if (!isalpha(fileName[strlen(fileName) - 1]))
+		if (!isalnum(fileName[strlen(fileName) - 1]))
 			fileName[strlen(fileName) - 1] = '\0';
+
+		//printf("fileName: %s", fileName);
 
 		FILE* file = fopen(fileName, "rb");
 		if (file == NULL) {
 			error("Error opening file");
 		}
-
+	
 		fseek(file, 0, SEEK_END);
 		long fileSize = ftell(file);
 		rewind(file);
@@ -205,7 +201,7 @@ int main(int argc, char **argv) {
 			if (buf[strlen(buf) - 1] == '\n')
 				buf[strlen(buf) - 1] = '\0';
 			short ack = (((short)buf[0]) << 8) | buf[1];
-			printf("recieved ack: %d\n", ack);
+			printf("Recieved ACK seq=%d\n", ack);
 			int ackNum = (((short)buf[0]) << 8) | buf[1];
 			if (ackNum < 0 || ackNum > 30720)
 				error("Invalid ACK number");
@@ -216,15 +212,16 @@ int main(int argc, char **argv) {
 				while (recievedACK[windowStart/1024]) {
 					for(i = 0; i < 5; i++) {
 						if (threadInfo[i].seq == windowStart) {
+							if (pthread_join(windowThreads[i], NULL) != 0)
+								printf("failed to join thread %d", windowStart);
+
 							threadInfo[i].seq = windowEnd;
 							threadInfo[i].len = fileSize - dataSent > 1022 ? 1022 : fileSize - dataSent;
 							threadInfo[i].dest_addr = &clientaddr;
 							threadInfo[i].serverlen = clientlen;
 							memset(threadInfo[i].buff, 0, 1024);
 							fread(threadInfo[i].buff, sizeof(char), threadInfo[i].len, file);
-
 							recievedACK[threadInfo[i].seq/1024] = 0;
-							pthread_kill(&windowThreads[i], SIGTERM);
 							pthread_create(&windowThreads[i], NULL, sendPacket, &threadInfo[i]);
 							currSeq += threadInfo[i].len + 2;
 							dataSent += threadInfo[i].len;
@@ -235,12 +232,13 @@ int main(int argc, char **argv) {
 				}
 			} 
 		}
+
 		// See if there are more ACKS we are waiting for
 		int sum = 0;
 		for (i = 0; i < 30; i++) {
 			sum += recievedACK[i];
 		}
-		printf("Waiting for %d more ACKS.\n", 30 - sum);
+
 		// Wait for the rest of the ACKS
 		while (sum != 30) {
 
@@ -252,11 +250,11 @@ int main(int argc, char **argv) {
 				buf[strlen(buf) - 1] = '\0';
 			
 			short ack = (((short)buf[0]) << 8) | buf[1];
-			printf("WAITING server received ACK %d\n", ack);
+			printf("Received ACK seq=%d\n", ack);
 			recievedACK[ack/1024] = 1;
 			for (i = 0; i < 5; i++) {
 				if (threadInfo[i].seq == ack) {
-					pthread_kill(&windowThreads[i], SIGKILL);
+					pthread_join(windowThreads[i], NULL);
 				}
 			}
 
@@ -264,23 +262,33 @@ int main(int argc, char **argv) {
 				sum += recievedACK[i];
 			}
 		}
-		printf("sending FIN\n");
 		// All ACKs Recieved, Send FIN
 		char packet[6];
-		memset(packet, 0, 5);
+		memset(packet, 0, 6);
+		printf("Sending Packet FIN\nSending Packet ACK\nReceived Packet ACK\n");
 		short seqNum = currSeq;
 		packet[0] = (currSeq >> 8) & 0xFF;
 		packet[1] = currSeq & 0xFF;
 		packet[2] = 'F';
 		packet[3] = 'I';
 		packet[4] = 'N';
+		struct timeval timeoutStart, sent, check, result;
+		int n = sendto(sockfd, packet, 5, 0, &clientaddr, clientlen);
+		gettimeofday(&timeoutStart, NULL);
+		gettimeofday(&sent, NULL);
 
-		int n = sendto(sockfd, packet, strlen(packet), 0, &clientaddr, clientlen);
-		if (n < 0)
-			error("Error sending packet.\n");
+		while (1) {
+			gettimeofday(&check, NULL);
+			timersub(&check, &sent, &result);
+			if (result.tv_usec > 10) {
+				sendto(sockfd, packet, 5, 0, &clientaddr, clientlen);
+				gettimeofday(&sent, NULL);
+			}
 
-		// Wait for FIN ACK
-		
+			timersub(&check, &timeoutStart, &result);
+			if (result.tv_usec > 1000)
+				break;
+		}
 		printf("Finished Sending File\n");
 	}
 }
