@@ -155,6 +155,9 @@ int main(int argc, char **argv) {
 		// Open the Requested File and Read the Size
 		if (!isalnum(fileName[strlen(fileName) - 1]))
 			fileName[strlen(fileName) - 1] = '\0';
+		
+		fileName[n - 1] = '\0';
+
 
 		printf("fileName: %s", fileName);
 
