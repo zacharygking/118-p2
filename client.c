@@ -51,6 +51,7 @@ int main(int argc, char **argv) {
     hostname = argv[1];
     portno = atoi(argv[2]);
     file_temp = argv[3];
+	memset(file_name, 0, BUFSIZE);
 
     /* socket: create the socket */
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -76,7 +77,9 @@ int main(int argc, char **argv) {
 	  (char *)&serveraddr.sin_addr.s_addr, server->h_length);
     serveraddr.sin_port = htons(portno);
 	printf("Sending packet SYN\n");
+
     strncpy(file_name, file_temp, strlen(file_temp));
+
     file_name[strlen(file_name)] = '\0';
 
       
