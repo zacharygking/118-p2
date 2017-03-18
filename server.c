@@ -156,7 +156,7 @@ int main(int argc, char **argv) {
 		if (!isalnum(fileName[strlen(fileName) - 1]))
 			fileName[strlen(fileName) - 1] = '\0';
 		
-		fileName[n - 1] = '\0';
+		fileName[n] = '\0';
 
 
 		printf("fileName: %s", fileName);
