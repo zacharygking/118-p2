@@ -83,7 +83,7 @@ int main(int argc, char **argv) {
     serverlen = sizeof(serveraddr);
 
     n = sendto(sockfd, file_name, strlen(file_name), 0, &serveraddr, serverlen); /* send file name to server */
-	for (int i = 0; i < 31; i++) {
+	for (i = 0; i < 31; i++) {
 		frame[i] = 0;
 	}
     while(1){ /* wait for server packets */
